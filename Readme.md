@@ -23,3 +23,21 @@ both of these programs is:
 are: `S` or `s` for seconds, `M` or `m` for minutes, `H` or `h` for hours
 and `D` or `d` for days, which is also the default modifier.
 
+Dependencies
+------------
+
+You will need these packages:
+
+- github.com/globalsign/mgo
+- github.com/globalsign/mgo/bson
+- github.com/fogleman/gg
+- github.com/wcharczuk/go-chart
+
+Get them by running:
+
+```shell
+go get github.com/globalsign/mgo
+go get github.com/globalsign/mgo/bson
+go get github.com/fogleman/gg
+go get github.com/wcharczuk/go-chart
+```
