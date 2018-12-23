@@ -21,7 +21,14 @@ both of these programs is:
 
 `modifier` specifies the scale `amount` is multiplied with. Possible values
 are: `S` or `s` for seconds, `M` or `m` for minutes, `H` or `h` for hours
-and `D` or `d` for days, which is also the default modifier.
+and `D` or `d` for days, which is also the default modifier. The amount is
+subtracted from the current day and data is taken starting from that day.
+
+For example:
+
+`gen_chart 10 d`
+
+will create a timeline chart for the last 10 days.
 
 Dependencies
 ------------
