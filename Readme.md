@@ -41,3 +41,20 @@ go get github.com/globalsign/mgo/bson
 go get github.com/fogleman/gg
 go get github.com/wcharczuk/go-chart
 ```
+
+Misc.
+-----
+
+I wrote this while still learning go. There is probably a lot non-ideomatic and
+inefficient code. However, it seems to mostly work and maybe someone else is
+also interested in tracking their computer usage. I am not familiar with how
+other window managers can be queried, and I am not interested in porting it
+myself. Pull requests welcome!
+
+Todo/Wishlist
+-------------
+
+- cleaner code
+- better selectable date range
+- even fancier graphs
+- ...
