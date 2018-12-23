@@ -60,6 +60,9 @@ func main() {
     collection.Find(bson.M{ "timestamp" : bson.M{ "$gt" : target_timestamp } }).All(&data)
     //fmt.Println(data)
     for _, d := range data {
+	if d["class"] == nil || d["title"] == nil {
+		continue
+	}
         graph_data_class[d["class"].(string)]++
         graph_data_title[d["title"].(string)]++
     }
