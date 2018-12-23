@@ -76,6 +76,9 @@ func get_range(start int64, end int64) ([]Task, []TaskType, map[string]int, int,
     sum_shares := 0
     temp_shares := 0
     for _, d := range data {
+        if _, ok := d["class"]; !ok {
+            continue
+        }
         curclass = d["class"].(string)
         curTs = d["timestamp"].(int64)
         if oldclass == "" {
@@ -95,6 +98,9 @@ func get_range(start int64, end int64) ([]Task, []TaskType, map[string]int, int,
 
         if oldclass != curclass || curTs - oldTs > 15 {
             endTask = d["timestamp"].(int64)
+            if curTs - oldTs > 15 {
+                endTask = oldTs
+            }
             if endTask - startTask > 5 * 3600 {
                 // more than 5 hours the same task is idle
                 shares[oldclass] -= temp_shares
@@ -102,7 +108,7 @@ func get_range(start int64, end int64) ([]Task, []TaskType, map[string]int, int,
                 shares[oldclass] += temp_shares
             }
             tasks = append(tasks, Task{time.Unix(startTask, 0), time.Unix(endTask, 0), oldclass})
-            startTask = endTask
+            startTask = curTs
             temp_shares = 0
         }
         oldclass = curclass
@@ -155,6 +161,8 @@ func main() {
         fmt.Println(err)
         return
     }
+
+    start_yearday := time.Unix(target_timestamp, 0).YearDay()
 //    fmt.Println(taskTypes, tasks)
 
     colors := []color.RGBA{color.RGBA{255, 0, 0, 255}, color.RGBA{0, 255, 0, 255}, color.RGBA{0, 0, 255, 255}, color.RGBA{255, 255, 0, 255}, color.RGBA{255, 0, 255, 255}, color.RGBA{0, 255, 255, 255}, color.RGBA{255, 255, 255, 255}, color.RGBA{0, 0, 0, 255}, color.RGBA{85, 85, 85, 255}, color.RGBA{170, 170, 170, 255}, color.RGBA{128, 255, 0, 255}, color.RGBA{128, 0, 255, 255}, color.RGBA{255, 128, 0, 255}}
@@ -164,6 +172,7 @@ func main() {
 
     var sorted_shares []int
     var sorted_taskTypes []TaskType
+    idle_shares := 0
     for _, v := range shares {
         sorted_shares = append(sorted_shares, v)
     }
@@ -175,6 +184,9 @@ func main() {
                     if v.TaskName == k {
                         v.Shares = s
                         sorted_taskTypes = append(sorted_taskTypes, v)
+                        if k == "idle" {
+                            idle_shares = s
+                        }
                         break
                     }
                 }
@@ -199,7 +211,7 @@ func main() {
 
 
     time_margin := 50
-    bar_width := 100
+    bar_width := 120
     margin := 5
     graph_height := 1000
     legend_height := 15 * len(taskTypes) + 5
@@ -215,7 +227,6 @@ func main() {
     for i := 0; i < height; i++ {
         HLine(chart, 0, width, i, color.RGBA{128, 128, 128, 255})
     }
-    day := 0
 
     p_per_h := float64(graph_height) / float64(24)
 
@@ -232,7 +243,7 @@ func main() {
         }
         i += 15
     }
-
+    days_in_year := 365
     for _, task := range tasks {
         h, m, s := task.StartTime.Clock()
         seconds := h * 3600 + m * 60 + s
@@ -240,6 +251,13 @@ func main() {
         h, m, s = task.EndTime.Clock()
         seconds = h * 3600 + m * 60 + s
         end_line := int(mp_per_s * float64(seconds)) / 1000
+        day := task.StartTime.YearDay() - start_yearday
+        if day < 0 {
+            if task.StartTime.YearDay() == 1 {
+                days_in_year = task.StartTime.Add(-24 * time.Hour).YearDay()
+            }
+            day += days_in_year
+        }
         var ttype TaskType
 
         for _, tt := range final_taskTypes {
@@ -281,13 +299,17 @@ func main() {
     date := tasks[0].StartTime
     for i := float64(time_margin); i < float64(width); i += float64(bar_width) {
         y, m, d := date.Date()
-        line := fmt.Sprint(d, " ", m.String()[0:3], " ", y)
+        w := date.Weekday()
+        line := fmt.Sprint(w.String()[0:3], " ", d, " ", m.String()[0:3], " ", y)
         dc.DrawString(line, i, float64(date_margin - 5))
         date = date.Add(24 * time.Hour)
     }
 
     for _, ttype := range final_taskTypes {
         line := fmt.Sprintf(": %v (%.2f%%)", ttype.TaskName, float64(ttype.Shares * 100) / float64(sum_shares))
+        if ttype.TaskName != "idle" {
+            line += fmt.Sprintf("(%.2f%%)", float64(ttype.Shares * 100) / float64(sum_shares - idle_shares))
+        }
         dc.DrawString(line, 20, float64(date_margin + graph_height + (i * 15)))
         i++
     }
