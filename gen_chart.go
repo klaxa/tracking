@@ -230,10 +230,18 @@ func main() {
 
     p_per_h := float64(graph_height) / float64(24)
 
+    hour := 0
+    bold := 1
     for i := float64(date_margin); i < float64(date_margin + graph_height); i += p_per_h {
-        for j := int(i - 1); j < int(i + 1); j++ {
+        if hour == 12 {
+            bold = 2
+        } else {
+            bold = 1
+        }
+        for j := int(i) - bold; j < int(i) + bold; j++ {
             HLine(chart, time_margin, width, j, color.RGBA{0, 0, 0, 255})
         }
+        hour++
     }
 
     i := 1
