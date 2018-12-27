@@ -304,7 +304,7 @@ func main() {
         dc.DrawString(str, 5, i + 3)
         h++
     }
-    date := tasks[0].StartTime
+    date := time.Unix(target_timestamp, 0)
     for i := float64(time_margin); i < float64(width); i += float64(bar_width) {
         y, m, d := date.Date()
         w := date.Weekday()
