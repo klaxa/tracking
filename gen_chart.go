@@ -314,9 +314,11 @@ func main() {
     }
 
     for _, ttype := range final_taskTypes {
-        line := fmt.Sprintf(": %v (%.2f%%)", ttype.TaskName, float64(ttype.Shares * 100) / float64(sum_shares))
+        line := fmt.Sprintf(": %v (%v)(%.2f%%)", ttype.TaskName, 10 * time.Second * time.Duration(ttype.Shares), float64(ttype.Shares * 100) / float64(sum_shares))
         if ttype.TaskName != "idle" {
             line += fmt.Sprintf("(%.2f%%)", float64(ttype.Shares * 100) / float64(sum_shares - idle_shares))
+        } else {
+            line += fmt.Sprintf(" Total time: %v", 10 * time.Second * time.Duration(sum_shares))
         }
         dc.DrawString(line, 20, float64(date_margin + graph_height + (i * 15)))
         i++
