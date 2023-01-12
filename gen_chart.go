@@ -48,14 +48,22 @@ func Rect(img *image.RGBA, x1 int, y1 int, x2 int, y2 int, col color.RGBA) {
     VLine(img, x2, y1, y2, col)
 }
 
+func fmtDuration(d time.Duration) string {
+    d = d.Round(time.Minute)
+    h := d / time.Hour
+    d -= h * time.Hour
+    m := d / time.Minute
+    return fmt.Sprintf("%02d:%02d", h, m)
+}
 
-func get_range(start int64, end int64) ([]Task, []TaskType, map[string]int, int, error) {
+
+func get_range(start int64, end int64) ([]Task, []TaskType, map[string]int, int, []int, error) {
     var err error
     session, err := mgo.Dial("localhost")
 
     if err != nil {
         fmt.Println(err)
-        return nil, nil, nil, 0, err
+        return nil, nil, nil, 0, nil, err
     }
     defer session.Close()
 
@@ -64,8 +72,24 @@ func get_range(start int64, end int64) ([]Task, []TaskType, map[string]int, int,
     var tasks []Task
     var taskTypes []TaskType
     collection.Find(bson.M{ "timestamp" : bson.M{ "$gt" : start, "$lt" : end } }).All(&data)
-
     sort.Slice(data, func(i, j int) bool { return data[i]["timestamp"].(int64) < data[j]["timestamp"].(int64) })
+    var daily_shares []int
+    current_day := 0
+    current_shares := 0
+    for i := 1; i < len(data); i++ {
+        current_shares++
+        previous_time := time.Unix(data[i-1]["timestamp"].(int64), 0)
+        current_time := time.Unix(data[i]["timestamp"].(int64), 0)
+        if current_time.Day() != previous_time.Day() {
+            fmt.Println(current_time.Day(), previous_time.Day())
+            daily_shares = append(daily_shares, current_shares)
+            current_day++
+            current_shares = 0
+        }
+    }
+    daily_shares = append(daily_shares, current_shares)
+
+
     var oldclass string
     var curclass string
     var oldTs int64
@@ -120,7 +144,7 @@ func get_range(start int64, end int64) ([]Task, []TaskType, map[string]int, int,
     endTask = data[len(data)-1]["timestamp"].(int64)
     tasks = append(tasks, Task{time.Unix(startTask, 0), time.Unix(endTask, 0), oldclass})
 
-    return tasks, taskTypes, shares, sum_shares, nil
+    return tasks, taskTypes, shares, sum_shares, daily_shares, nil
 }
 
 
@@ -156,7 +180,7 @@ func main() {
 
     target_timestamp := time.Now().Unix() - int64(offset)
 
-    tasks, taskTypes, shares, sum_shares, err := get_range(target_timestamp, time.Now().Unix())
+    tasks, taskTypes, shares, sum_shares, daily_shares, err := get_range(target_timestamp, time.Now().Unix())
     if err != nil {
         fmt.Println(err)
         return
@@ -216,7 +240,8 @@ func main() {
     graph_height := 1000
     legend_height := 15 * len(taskTypes) + 5
     date_margin := 30
-    height := graph_height + legend_height + date_margin
+    daily_time_margin := 40
+    height := graph_height + legend_height + date_margin + daily_time_margin
     width := bar_width * ((offset / (24 * 3600)) + 1) + time_margin
 
     // mili-pixels per second = 1080 / (24 * 3600)
@@ -247,12 +272,15 @@ func main() {
     i := 1
     for _, ttype := range final_taskTypes {
         for j := 0; j < 10; j++ {
-            HLine(chart, 5, 15, date_margin + graph_height + 5 + i + j, ttype.Color)
+            HLine(chart, 5, 15, date_margin + graph_height + daily_time_margin + 5 + i + j, ttype.Color)
         }
         i += 15
     }
     days_in_year := 365
     for _, task := range tasks {
+        // dc := gg.NewContextForRGBA(chart)
+        // dc.SavePNG("chart." + strconv.Itoa(png_count) + ".png")
+        // png_count++
         h, m, s := task.StartTime.Clock()
         seconds := h * 3600 + m * 60 + s
         start_line := int(mp_per_s * float64(seconds)) / 1000
@@ -297,6 +325,7 @@ func main() {
 
     dc := gg.NewContextForRGBA(chart)
     dc.SetRGBA(0, 0, 0, 1)
+    // print time on the left
     i = 1
     h := 0
     for i := float64(date_margin); i < float64(date_margin + graph_height); i += p_per_h {
@@ -304,13 +333,22 @@ func main() {
         dc.DrawString(str, 5, i + 3)
         h++
     }
+
+    // print date at the top and daily usage at the bottom
     date := time.Unix(target_timestamp, 0)
+    current_day := 0
     for i := float64(time_margin); i < float64(width); i += float64(bar_width) {
         y, m, d := date.Date()
         w := date.Weekday()
         line := fmt.Sprint(w.String()[0:3], " ", d, " ", m.String()[0:3], " ", y)
         dc.DrawString(line, i, float64(date_margin - 5))
         date = date.Add(24 * time.Hour)
+        day_duration, _ := time.ParseDuration(fmt.Sprint(daily_shares[current_day]) + "0s")
+        line = fmtDuration(day_duration)
+        dc.DrawString(line, i + 30, float64(date_margin + graph_height + 15))
+        line = fmtDuration((day_duration + 1 * time.Hour).Truncate(time.Hour))
+        dc.DrawString(line, i + 30, float64(date_margin + graph_height + 30))
+        current_day++
     }
 
     for _, ttype := range final_taskTypes {
@@ -320,7 +358,7 @@ func main() {
         } else {
             line += fmt.Sprintf(" Total time: %v", 10 * time.Second * time.Duration(sum_shares))
         }
-        dc.DrawString(line, 20, float64(date_margin + graph_height + (i * 15)))
+        dc.DrawString(line, 20, float64(date_margin + graph_height + daily_time_margin + (i * 15)))
         i++
     }
     dc.SavePNG("chart.png")
