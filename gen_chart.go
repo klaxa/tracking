@@ -74,6 +74,12 @@ func get_range(start int64, end int64) ([]Task, []TaskType, map[string]int, int,
     collection.Find(bson.M{ "timestamp" : bson.M{ "$gt" : start, "$lt" : end } }).All(&data)
     sort.Slice(data, func(i, j int) bool { return data[i]["timestamp"].(int64) < data[j]["timestamp"].(int64) })
     var daily_shares []int
+    start_day := time.Unix(start, 0)
+    first_day := time.Unix(data[0]["timestamp"].(int64), 0)
+    for start_day.Day() != first_day.Day() {
+        daily_shares = append(daily_shares, 0)
+        start_day = start_day.Add(24 * time.Hour)
+    }
     current_day := 0
     current_shares := 0
     for i := 1; i < len(data); i++ {
@@ -81,10 +87,16 @@ func get_range(start int64, end int64) ([]Task, []TaskType, map[string]int, int,
         previous_time := time.Unix(data[i-1]["timestamp"].(int64), 0)
         current_time := time.Unix(data[i]["timestamp"].(int64), 0)
         if current_time.Day() != previous_time.Day() {
-            fmt.Println(current_time.Day(), previous_time.Day())
+            next_day := previous_time.Add(24 * time.Hour)
+            fmt.Println(next_day.Day(), previous_time.Day())
             daily_shares = append(daily_shares, current_shares)
             current_day++
             current_shares = 0
+            for next_day.Day() != current_time.Day() {
+                fmt.Println("skip: ", next_day.Day(), previous_time.Day())
+                daily_shares = append(daily_shares, 0)
+                next_day = next_day.Add(24 * time.Hour)
+            }
         }
     }
     daily_shares = append(daily_shares, current_shares)
@@ -240,7 +252,7 @@ func main() {
     graph_height := 1000
     legend_height := 15 * len(taskTypes) + 5
     date_margin := 30
-    daily_time_margin := 40
+    daily_time_margin := 70
     height := graph_height + legend_height + date_margin + daily_time_margin
     width := bar_width * ((offset / (24 * 3600)) + 1) + time_margin
 
@@ -334,22 +346,41 @@ func main() {
         h++
     }
 
-    // print date at the top and daily usage at the bottom
+    // print date at the top and daily/monthly usage at the bottom
     date := time.Unix(target_timestamp, 0)
     current_day := 0
+    current_month_duration := 0 * time.Second
+    current_month_duration_round := 0 * time.Second
     for i := float64(time_margin); i < float64(width); i += float64(bar_width) {
         y, m, d := date.Date()
         w := date.Weekday()
         line := fmt.Sprint(w.String()[0:3], " ", d, " ", m.String()[0:3], " ", y)
         dc.DrawString(line, i, float64(date_margin - 5))
         date = date.Add(24 * time.Hour)
+        _, next_m, _ := date.Date()
         day_duration, _ := time.ParseDuration(fmt.Sprint(daily_shares[current_day]) + "0s")
+        current_month_duration += day_duration
         line = fmtDuration(day_duration)
         dc.DrawString(line, i + 30, float64(date_margin + graph_height + 15))
-        line = fmtDuration((day_duration + 1 * time.Hour).Truncate(time.Hour))
+        day_duration_round := (day_duration + 59 * time.Minute).Truncate(time.Hour)
+        current_month_duration_round += day_duration_round
+        line = fmtDuration(day_duration_round)
         dc.DrawString(line, i + 30, float64(date_margin + graph_height + 30))
         current_day++
+        if next_m != m {
+            line = fmtDuration(current_month_duration)
+            dc.DrawString(line, i + 30, float64(date_margin + graph_height + 45))
+            line = fmtDuration(current_month_duration_round)
+            dc.DrawString(line, i + 30, float64(date_margin + graph_height + 60))
+            current_month_duration = 0 * time.Second
+            current_month_duration_round = 0 * time.Second
+        }
     }
+    line := fmtDuration(current_month_duration)
+    dc.DrawString(line, float64(width - bar_width + 30), float64(date_margin + graph_height + 45))
+    line = fmtDuration(current_month_duration_round)
+    dc.DrawString(line, float64(width - bar_width + 30), float64(date_margin + graph_height + 60))
+
 
     for _, ttype := range final_taskTypes {
         line := fmt.Sprintf(": %v (%v)(%.2f%%)", ttype.TaskName, 10 * time.Second * time.Duration(ttype.Shares), float64(ttype.Shares * 100) / float64(sum_shares))
