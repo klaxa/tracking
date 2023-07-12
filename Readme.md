@@ -35,18 +35,25 @@ Dependencies
 
 You will need these packages:
 
-- github.com/globalsign/mgo
-- github.com/globalsign/mgo/bson
+- go.mongodb.org/mongo-driver/bson
+- go.mongodb.org/mongo-driver/mongo
+- go.mongodb.org/mongo-driver/mongo/options
 - github.com/fogleman/gg
 - github.com/wcharczuk/go-chart
 
 Get them by running:
 
 ```shell
-go get github.com/globalsign/mgo
-go get github.com/globalsign/mgo/bson
+go get go.mongodb.org/mongo-driver/bson
+go get go.mongodb.org/mongo-driver/mongo
 go get github.com/fogleman/gg
 go get github.com/wcharczuk/go-chart
+```
+
+or just use the supplied `go.mod` file:
+
+```shell
+go mod download
 ```
 
 Misc.
