@@ -3,11 +3,16 @@ package main
 import (
     "encoding/json"
     "fmt"
+    "context"
     "os/exec"
     "time"
-    "github.com/globalsign/mgo"
+    "go.mongodb.org/mongo-driver/bson"
+    "go.mongodb.org/mongo-driver/mongo"
+    "go.mongodb.org/mongo-driver/mongo/options"
 //     "io/ioutil"
 )
+
+const uri = "mongodb://localhost"
 
 
 func get_focused_window(indent string, node map[string]interface{}) map[string]interface{} {
@@ -31,19 +36,29 @@ func get_focused_window(indent string, node map[string]interface{}) map[string]i
 }
 
 func main() {
-
-    session, err := mgo.Dial("localhost")
-
+    
+    
+    //serverAPI := options.ServerAPI(options.ServerAPIVersion1)
+    opts := options.Client().ApplyURI(uri) //.SetServerAPIOptions(serverAPI)
+    // Create a new client and connect to the server
+    client, err := mongo.Connect(context.TODO(), opts)
     if err != nil {
-        fmt.Println(err)
-        return
+        panic(err)
+    }
+    defer func() {
+        if err = client.Disconnect(context.TODO()); err != nil {
+            panic(err)
+        }
+    }()
+    // Send a ping to confirm a successful connection
+    var result bson.M
+    if err := client.Database("admin").RunCommand(context.TODO(), bson.D{{"ping", 1}}).Decode(&result); err != nil {
+        panic(err)
     }
 
-    defer session.Close()
-
-    fmt.Println(session)
-
-    collection := session.DB("tracking").C("focus")
+    fmt.Println(client)
+    
+    collection := client.Database("tracking").Collection("focus")
 
     fmt.Println(collection)
 
@@ -72,7 +87,11 @@ func main() {
         focus["timestamp"] = time.Now().Unix()
 //              fmt.Println(focus)
 
-        collection.Insert(focus)
+        _, err = collection.InsertOne(context.TODO(), focus)
+        if err != nil {
+            panic(err)
+        }
+        
         time.Sleep(10 * time.Second)
     }
 

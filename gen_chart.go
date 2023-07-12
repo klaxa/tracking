@@ -3,16 +3,20 @@ package main
 import (
     "image"
     "image/color"
+    "context"
     "fmt"
     "time"
     "strconv"
     "sort"
     "os"
-    "github.com/globalsign/mgo"
-    "github.com/globalsign/mgo/bson"
+    "go.mongodb.org/mongo-driver/bson"
+    "go.mongodb.org/mongo-driver/mongo"
+    "go.mongodb.org/mongo-driver/mongo/options"
     "github.com/fogleman/gg"
     "math/rand"
 )
+
+const uri = "mongodb://localhost"
 
 type Task struct {
     StartTime time.Time
@@ -59,19 +63,40 @@ func fmtDuration(d time.Duration) string {
 
 func get_range(start int64, end int64) ([]Task, []TaskType, map[string]int, int, []int, error) {
     var err error
-    session, err := mgo.Dial("localhost")
-
+    //serverAPI := options.ServerAPI(options.ServerAPIVersion1)
+    opts := options.Client().ApplyURI(uri) //.SetServerAPIOptions(serverAPI)
+    // Create a new client and connect to the server
+    client, err := mongo.Connect(context.TODO(), opts)
     if err != nil {
-        fmt.Println(err)
-        return nil, nil, nil, 0, nil, err
+        panic(err)
     }
-    defer session.Close()
-
-    collection := session.DB("tracking").C("focus")
+    defer func() {
+        if err = client.Disconnect(context.TODO()); err != nil {
+            panic(err)
+        }
+    }()
+    // Send a ping to confirm a successful connection
+    var result bson.M
+    if err := client.Database("admin").RunCommand(context.TODO(), bson.D{{"ping", 1}}).Decode(&result); err != nil {
+        panic(err)
+    }
+    
+    fmt.Println(client)
+    
+    collection := client.Database("tracking").Collection("focus")
+    
+    fmt.Println(collection)
     var data []map[string]interface{}
     var tasks []Task
     var taskTypes []TaskType
-    collection.Find(bson.M{ "timestamp" : bson.M{ "$gt" : start, "$lt" : end } }).All(&data)
+    cursor, err := collection.Find(context.TODO(), bson.M{ "timestamp" : bson.M{ "$gt" : start, "$lt" : end } })
+    if err != nil {
+        panic(err)
+    }
+    err = cursor.All(context.TODO(), &data)
+    if err != nil {
+        panic(err)
+    }
     sort.Slice(data, func(i, j int) bool { return data[i]["timestamp"].(int64) < data[j]["timestamp"].(int64) })
     var daily_shares []int
     start_day := time.Unix(start, 0)
